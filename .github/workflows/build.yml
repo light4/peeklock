@@ -16,17 +16,10 @@ jobs:
           xcodebuild -version
           swift --version
       - name: swift-format lint
-        run: xcrun swift-format lint --strict -r Package.swift Sources scripts/make-icon.swift
-      - uses: astral-sh/setup-uv@v10.3.2
-        with:
-          enable-cache: false
-      - name: ruff
-        run: |
-          uvx ruff format --check scripts e2e
-          uvx ruff check scripts e2e
+        run: xcrun swift-format lint --strict -r Package.swift Sources e2e scripts
       - name: Build (release)
         run: swift build -c release
       # Hosted macOS runners grant Accessibility, so the real-lock tests can run there
-      # safely (disposable machine); they skip with a reason if a permission is missing.
+      # safely (disposable machine).
       - name: e2e (including real-lock tests)
-        run: uv run e2e/run.py --lock
+        run: PEEKLOCK_E2E_LOCK=1 swift test

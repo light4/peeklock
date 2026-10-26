@@ -1,32 +1,34 @@
 # 测试
 
-项目只有端到端（e2e）测试，没有单元测试。测试代码在 `e2e/`，用 pytest 编写，由 uv 单文件脚本 `e2e/run.py` 运行，依赖 pytest 和 pyobjc-framework-Quartz，由 uv 自动安装。
+项目只有端到端（e2e）测试，没有单元测试。测试代码在 `e2e/`，对应 `Package.swift` 中的测试目标 `E2E`，用 Swift Testing 编写，不依赖第三方库。所有测试都放在同一个 `.serialized` 根套件下，按顺序执行、互不重叠。
 
 ```bash
-uv run e2e/run.py                 # CLI + 打包测试；不会锁定输入
-uv run e2e/run.py --lock          # 另外运行真正锁定输入的测试（每项几秒）
-uv run e2e/run.py -- -k bundle    # -- 之后的参数直接交给 pytest
+swift test                              # CLI + 打包测试；不会锁定输入
+PEEKLOCK_E2E_LOCK=1 swift test          # 另外运行真正锁定输入的测试（每项几秒）
+swift test --filter Packaging           # 只跑某个套件
 ```
 
 ## 覆盖范围
 
 | 文件 | 内容 | 何时运行 |
 | --- | --- | --- |
-| `test_cli.py` | `--help` / `--version` / `--status`、未知参数退出码 2、App 未运行时 `--app` 失败、无辅助功能权限时拒绝锁定（退出码 1） | 默认；最后一项只在 CI（`CI=true`）且无权限时运行，因为它会打开系统设置。GitHub 托管的 macOS runner 已有辅助功能权限，所以这一项在 CI 中实际上会跳过 |
-| `test_bundle.py` | 用 `package.py --debug` 打包；检查目录结构（含大小写冲突回归）、Info.plist、codesign；启动第二个实例，确认它是 accessory App 并写入启动日志 | 默认；没有 Apple Development 证书时用 ad-hoc 签名 |
-| `test_lock.py` | 真实锁定：锁定时吞掉按键和滚轮、持有熄屏断言（`pmset -g assertions`），SIGTERM 后恢复输入并释放断言；`-b` 模式；调试构建的自动解锁 | 仅 `--lock`；CI 每次都会运行 |
+| `CLITests.swift` | `--help`、`--version`（与 `Version.swift` 一致）、`--status`、未知参数退出码 2、App 未运行时 `--app` 失败、无辅助功能权限时拒绝锁定（退出码 1） | 默认。`--app` 一项在 PeekLock.app 运行时跳过；拒绝锁定一项只在 CI（`CI=true`）且无权限时运行，因为它会打开系统设置。GitHub 托管 runner 已有权限，所以这一项实际上会跳过 |
+| `PackagingTests.swift` | 用 `scripts/package.swift --debug --zip --bin-path …` 把已构建的产物打包到临时目录；检查目录结构（含大小写冲突回归）、Info.plist、codesign、zip 往返（sha256、解压后签名、版本）；启动第二个实例，确认它是 accessory App 并写入启动日志 | 默认；没有 Apple Development 证书时用 ad-hoc 签名 |
+| `LockTests.swift` | 真实锁定：锁定时吞掉按键和滚轮、持有熄屏断言（`pmset -g assertions`），SIGTERM 后恢复输入并释放断言；`-b` 模式；调试构建的自动解锁 | 仅当 `PEEKLOCK_E2E_LOCK=1`；CI 每次都会运行 |
+
+`swift test` 运行期间会占用 `.build` 锁，所以打包测试用 `--bin-path` 复用已构建的二进制，不再次调用 `swift build`。
 
 ### 锁定测试的原理
 
-测试在 HID 层投递带标记的探针事件（F19 按下/抬起，以及一次零位移滚动，都没有副作用），并用本进程中一个仅监听的**会话级** tap 计数。PeekLock 的 HID tap 位于会话 tap 之前，所以锁定时探针不应到达。
+测试在 HID 层投递带标记的探针事件（F19 按下/抬起，以及一次零位移滚动，都没有副作用），并用测试进程中一个仅监听的**会话级** tap 计数。PeekLock 的 HID tap 位于会话 tap 之前，所以锁定时探针不应到达。
 
 每项测试都会先在未锁定状态下确认探针能够到达；如果环境本身有问题，测试会直接失败，而不会误判为通过。锁定使用调试构建，并设置 `PEEKLOCK_DEBUG_AUTOUNLOCK` 作为安全网；测试结束时一定会结束 peeklock 进程。
 
-GitHub 托管的 macOS runner 默认已授予这些权限，而且是一次性机器，所以 CI 用 `--lock` 运行这些测试。本地运行的前提：终端 App 需要**辅助功能**（投递事件、peeklock 本身）和**输入监控**（监听 tap）权限，否则这些测试会被跳过并说明原因。
+GitHub 托管的 macOS runner 默认已授予所需权限，而且是一次性机器，所以 CI 会运行这些测试。本地运行的前提：终端 App 需要**辅助功能**（投递事件、peeklock 本身）和**输入监控**（监听 tap）权限。设置了 `PEEKLOCK_E2E_LOCK=1` 却缺少权限时，测试会失败并说明原因。
 
 ## 无法自动化的部分（人工验收）
 
-Touch ID、密码输入和系统认证框无法自动驱动，需要人工验收。建议用调试构建（`uv run scripts/package.py --debug --install`），并开着日志：
+Touch ID、密码输入和系统认证框无法自动驱动，需要人工验收。建议用调试构建（`swift scripts/package.swift --debug --install`），并开着日志：
 
 ```bash
 log stream --predicate 'subsystem == "io.i01.peeklock"' --style compact

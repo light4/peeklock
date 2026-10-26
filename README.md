@@ -7,7 +7,7 @@ macOS 上类似 [xtrlock](https://manpages.debian.org/xtrlock) 的输入锁，�
 ## 快速开始
 
 ```bash
-uv run scripts/package.py --install   # 构建、签名，安装到 ~/Applications，并链接 ~/.local/bin/peeklock
+swift scripts/package.swift --install # 构建、签名，安装到 ~/Applications，并链接 ~/.local/bin/peeklock
 open ~/Applications/PeekLock.app      # 菜单栏出现锁图标；按提示授予「辅助功能」权限
 peeklock                              # 或者在命令行锁定（-b 同时黑屏）
 ```

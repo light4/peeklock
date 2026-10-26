@@ -2,14 +2,14 @@
 
 ## 构建与安装
 
-需要 macOS 13+ 和 Xcode（Swift 5.9+），打包脚本还需要 [uv](https://docs.astral.sh/uv/)。
+需要 macOS 13+ 和 Xcode（Swift 5.9+）。不依赖 Python 或其他第三方工具。
 
 ```bash
 swift build                                  # 调试构建（带 60 秒安全自动解锁）
-uv run scripts/package.py --install          # release 构建 + 签名 + 安装
+swift scripts/package.swift --install         # release 构建 + 签名 + 安装
 ```
 
-`scripts/package.py` 的步骤：
+`scripts/package.swift` 的步骤：
 
 1. 生成 `build/PeekLock.app`，App 可执行文件位于 `Contents/MacOS/PeekLock`，CLI 位于 `Contents/Helpers/peeklock`。CLI 不放进 `MacOS/` 目录，因为在大小写不敏感的 APFS 上，`peeklock` 和 `PeekLock` 是同一个文件。
 2. 用本机第一个 `Apple Development` 证书签名。
@@ -21,6 +21,10 @@ uv run scripts/package.py --install          # release 构建 + 签名 + 安装
 | `--debug` | 打包调试构建（锁定 60 秒后自动解锁） |
 | `--identity <SHA1>` | 指定签名证书 |
 | `--adhoc` | ad-hoc 签名；每次重新构建后都需要重新授权 |
+| `--zip` | 另外生成 `PeekLock-<版本>.zip` 和 `.sha256` |
+| `--bin-path <目录>` | 直接使用已构建的二进制，不再运行 `swift build`（e2e 测试用） |
+| `--output <目录>` | 输出目录，默认 `build/` |
+| `--print-version` | 输出 `Version.swift` 中的版本号 |
 
 用固定的开发证书签名后，重新构建时 TCC 权限可以保留。
 

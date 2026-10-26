@@ -23,14 +23,11 @@ jobs:
       HAS_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2
-        with:
-          enable-cache: false
 
       - name: Resolve version
         id: version
         run: |
-          version="$(uv run scripts/package.py --print-version)"
+          version="$(swift scripts/package.swift --print-version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$version" ]]; then
             echo "::error::tag $GITHUB_REF_NAME does not match Version.swift ($version)"
@@ -40,12 +37,10 @@ jobs:
 
       - name: Lint
         run: |
-          xcrun swift-format lint --strict -r Package.swift Sources scripts/make-icon.swift
-          uvx ruff format --check scripts e2e
-          uvx ruff check scripts e2e
+          xcrun swift-format lint --strict -r Package.swift Sources e2e scripts
 
       - name: e2e (including real-lock tests)
-        run: uv run e2e/run.py --lock
+        run: PEEKLOCK_E2E_LOCK=1 swift test
 
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'
@@ -71,10 +66,10 @@ jobs:
       - name: Package
         run: |
           if [[ "$HAS_CERT" == "true" ]]; then
-            uv run scripts/package.py --zip
+            swift scripts/package.swift --zip
           else
             echo "::warning::No MACOS_CERT_P12_BASE64 secret; ad-hoc signing (TCC permissions reset on every update)."
-            uv run scripts/package.py --zip --adhoc
+            swift scripts/package.swift --zip --adhoc
           fi
           codesign --verify --strict --verbose=2 build/PeekLock.app
           codesign -dv build/PeekLock.app 2>&1 | grep -E "Identifier|Authority|TeamIdentifier|Signature"

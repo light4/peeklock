@@ -21,5 +21,8 @@ let package = Package(
     ),
     .executableTarget(name: "PeekLockApp", dependencies: ["PeekLockCore"]),
     .executableTarget(name: "peeklock", dependencies: ["PeekLockCore"], path: "Sources/CLI"),
+    // End-to-end tests only (no unit tests): black-box checks against the built products.
+    // Depends on the executables so `swift test` builds them first.
+    .testTarget(name: "E2E", dependencies: ["peeklock", "PeekLockApp"], path: "e2e"),
   ]
 )

@@ -35,7 +35,7 @@ CLI 收到 SIGTERM 或 SIGHUP 时会先解锁再退出，因此可以通过 SSH 
 | Padlock cursor | 开 | 锁形光标 |
 | Keep display awake | 开 | 锁定期间屏幕保持常亮（`PreventUserIdleDisplaySleep` 电源断言，解锁即释放）；关闭后按系统设置的时间熄屏 |
 
-调试构建（`swift build` / `package.py --debug`）会在锁定 **60 秒后自动解锁**，防止开发时把自己锁死。可以用环境变量 `PEEKLOCK_DEBUG_AUTOUNLOCK=<秒>` 调整，设为 `0` 关闭；release 构建没有这个机制。
+调试构建（`swift build` / `swift scripts/package.swift --debug`）会在锁定 **60 秒后自动解锁**，防止开发时把自己锁死。可以用环境变量 `PEEKLOCK_DEBUG_AUTOUNLOCK=<秒>` 调整，设为 `0` 关闭；release 构建没有这个机制。
 
 ## 日志
 

@@ -12,8 +12,8 @@
 
 3. `.github/workflows/release.yml` 自动执行：
    - 校验 tag 与 `Version.swift` 一致，不一致则失败
-   - 运行 swift-format / ruff 检查，以及包含真实锁定测试的 e2e
-   - 用 `scripts/package.py --zip` 打包 release 构建并签名
+   - 运行 swift-format 检查，以及包含真实锁定测试的 e2e（`PEEKLOCK_E2E_LOCK=1 swift test`）
+   - 用 `swift scripts/package.swift --zip` 打包 release 构建并签名
    - 解压校验：sha256、codesign、CLI 版本、Info.plist 版本
    - 创建 GitHub Release `v0.2.0`，附件为 `PeekLock-0.2.0.zip` 和 `PeekLock-0.2.0.zip.sha256`，说明自动生成
 

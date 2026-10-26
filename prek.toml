@@ -2,7 +2,7 @@
 # See https://prek.j178.dev for more information.
 #:schema https://www.schemastore.org/prek.json
 
-# Hooks bundled with prek (no network / no Python environment needed).
+# Hooks bundled with prek (no network needed).
 [[repos]]
 repo = "builtin"
 hooks = [
@@ -36,19 +36,5 @@ hooks = [
     entry = "xcrun swift-format lint --strict",
     language = "system",
     types = ["swift"],
-  },
-  {
-    id = "ruff-format",
-    name = "ruff format",
-    entry = "uvx ruff format",
-    language = "system",
-    types = ["python"],
-  },
-  {
-    id = "ruff-check",
-    name = "ruff check",
-    entry = "uvx ruff check --fix",
-    language = "system",
-    types = ["python"],
   },
 ]
