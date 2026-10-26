@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: swift-format
+        name: swift-format (format)
+        entry: xcrun swift-format format --in-place
+        language: system
+        types: [swift]
+      - id: swift-format-lint
+        name: swift-format (lint --strict)
+        entry: xcrun swift-format lint --strict
+        language: system
+        types: [swift]

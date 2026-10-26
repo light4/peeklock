@@ -1,0 +1,33 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: swift-format lint
+        run: xcrun swift-format lint --strict -r Package.swift Sources scripts/make-icon.swift
+      - name: Build (debug)
+        run: swift build
+      - name: Build (release)
+        run: swift build -c release
+      - name: CLI smoke check
+        run: |
+          .build/release/peeklock --help
+          .build/release/peeklock --version
+          .build/release/peeklock --status
+      - uses: astral-sh/setup-uv@v6
+      - name: Package (ad-hoc signed)
+        run: |
+          uv run scripts/package.py --adhoc
+          codesign --verify --strict --verbose=2 build/PeekLock.app
