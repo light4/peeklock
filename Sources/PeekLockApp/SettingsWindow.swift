@@ -125,6 +125,11 @@ final class SettingsWindowController: NSWindowController {
       action: #selector(cursorChanged(_:)))
     cursor.state = settings.lockCursor ? .on : .off
 
+    let awake = NSButton(
+      checkboxWithTitle: "Keep display awake while locked", target: self,
+      action: #selector(awakeChanged(_:)))
+    awake.state = settings.keepDisplayAwake ? .on : .off
+
     let openAX = NSButton(
       title: "Accessibility…", target: self, action: #selector(openAccessibility))
     let openIM = NSButton(
@@ -138,6 +143,7 @@ final class SettingsWindowController: NSWindowController {
       [NSTextField(labelWithString: "Auto-lock when idle:"), idleRow],
       [NSTextField(labelWithString: "While locked:"), badge],
       [NSGridCell.emptyContentView, cursor],
+      [NSGridCell.emptyContentView, awake],
       [NSTextField(labelWithString: "Permissions:"), permissionRow],
     ])
     grid.column(at: 0).xPlacement = .trailing
@@ -187,6 +193,11 @@ final class SettingsWindowController: NSWindowController {
 
   @objc private func cursorChanged(_ sender: NSButton) {
     settings.lockCursor = sender.state == .on
+    onChange()
+  }
+
+  @objc private func awakeChanged(_ sender: NSButton) {
+    settings.keepDisplayAwake = sender.state == .on
     onChange()
   }
 

@@ -34,6 +34,7 @@ def test_status_reports_permissions_and_hotkey(debug_build: Build) -> None:
     assert any(line.startswith("Accessibility: ") for line in lines)
     assert any(line.startswith("Authentication: ") for line in lines)
     assert any(line.startswith("Unlock hotkey: ") for line in lines)
+    assert any(line.startswith("Keep display awake while locked: ") for line in lines)
     assert any(line.startswith("Secure Event Input active: ") for line in lines)
 
 

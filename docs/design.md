@@ -20,6 +20,7 @@ App target 名为 `PeekLockApp`、CLI 源码放在 `Sources/CLI`，原因相同�
 - **`Authenticator`**：`LAContext.evaluatePolicy(.deviceOwnerAuthentication)`，带 60 秒超时（超时后 `invalidate`）。
 - **`LockController`**：状态机 `unlocked → locked → authenticating → locked/unlocked`，协调拦截、遮罩、认证、调试用自动解锁和日志。
 - **`OverlayManager`**：每块屏幕一个点击穿透的角标面板（屏保层级 +1），外加一个近乎透明的全屏面板承载锁形光标（`-b` 模式下为黑色）。面板加入所有 Space（含全屏 Space）。
+- **`DisplayAwake`**：锁定期间持有 IOKit `PreventUserIdleDisplaySleep` 断言（名为 `PeekLock: input locked`），解锁时释放；进程意外退出时由内核自动回收。
 - **`GlobalHotkey`**：Carbon `RegisterEventHotKey`，无需额外权限。
 - **`IdleMonitor`**：`CGEventSource.secondsSinceLastEventType` 轮询。
 - **`Settings`**：偏好域 `io.i01.peeklock`，App 与 CLI 共用。

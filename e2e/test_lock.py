@@ -35,6 +35,15 @@ Quartz = pytest.importorskip("Quartz")
 PROBE_TAG = 0x504B4C4B  # "PKLK", stored in kCGEventSourceUserData
 KEY_F19 = 80
 SAFETY_SECONDS = 20
+ASSERTION_NAME = "PeekLock: input locked"
+
+
+def display_sleep_assertion(pid: int) -> bool:
+    """Whether `pid` holds PeekLock's display-sleep assertion (`pmset -g assertions`)."""
+    out = subprocess.run(
+        ["pmset", "-g", "assertions"], text=True, capture_output=True, timeout=30, check=True
+    ).stdout
+    return any(f"pid {pid}(" in line and ASSERTION_NAME in line for line in out.splitlines())
 
 
 class ProbeListener:
@@ -153,13 +162,18 @@ def start_lock(build: Build, holder: list[Locker], *args: str, safety: int = SAF
 
 
 def test_lock_swallows_input_and_sigterm_releases(
-    debug_build: Build, listener: ProbeListener, locker: list[Locker]
+    debug_build: Build, listener: ProbeListener, locker: list[Locker], cli_status: str
 ) -> None:
+    keep_awake = "Keep display awake while locked: true" in cli_status
     lock = start_lock(debug_build, locker)
     assert lock.proc.poll() is None, lock.stderr
     assert listener.probe() == 0, "keys/scroll leaked through while locked"
+    pid = lock.proc.pid
+    # Default is on; follow the user's setting if it was turned off in Settings.
+    assert display_sleep_assertion(pid) == keep_awake, f"expected assertion={keep_awake}"
     assert lock.stop() == 0
     assert listener.probe() == 3, "input still blocked after unlock"
+    assert not display_sleep_assertion(pid), "display-sleep assertion leaked after unlock"
 
 
 def test_blank_mode_locks_and_releases(

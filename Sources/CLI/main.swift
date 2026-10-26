@@ -44,6 +44,7 @@ for arg in CommandLine.arguments.dropFirst() {
     print(Permissions.summary)
     print("Authentication: \(Authenticator.availability())")
     print("Unlock hotkey: \(Settings.shared.unlockHotkey)")
+    print("Keep display awake while locked: \(Settings.shared.keepDisplayAwake)")
     print("Secure Event Input active: \(Permissions.secureInputEnabled)")
     exit(0)
   default:

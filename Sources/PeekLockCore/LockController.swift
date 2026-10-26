@@ -39,6 +39,7 @@ public final class LockController {
   private let authenticator = Authenticator()
   private var previousApp: NSRunningApplication?
   private var debugTimer: Timer?
+  private let displayAwake = DisplayAwake()
   private var unlockHotkey: Hotkey
   private var reportedAuthTargets: Set<pid_t> = []
   /// Per-target tally of keys/clicks seen during the current authentication.
@@ -94,7 +95,11 @@ public final class LockController {
       blank: blank, useCursor: settings.lockCursor, showBadge: settings.showBadge,
       badgeText: lockedBadgeText)
     state = .locked
-    Log.info("Locked (blank: \(blank)). \(Permissions.summary)")
+    if settings.keepDisplayAwake, !displayAwake.acquire() {
+      note("Could not prevent display sleep; the screen may turn off while locked.")
+    }
+    Log.info(
+      "Locked (blank: \(blank), keepDisplayAwake: \(displayAwake.isHeld)). \(Permissions.summary)")
     armDebugAutoUnlock()
   }
 
@@ -153,6 +158,7 @@ public final class LockController {
     authenticator.cancel()
     blocker.stop()
     overlays.hide()
+    displayAwake.release()
     NSCursor.arrow.set()
     state = .unlocked
     Log.info("Unlocked.")

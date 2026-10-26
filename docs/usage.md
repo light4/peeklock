@@ -19,6 +19,7 @@ CLI 收到 SIGTERM 或 SIGHUP 时会先解锁再退出，因此可以通过 SSH 
 ## 锁定期间
 
 - 视频、其他 App 照常显示和运行；键盘、点击、滚轮、触控板手势和媒体键都被吞掉；指针可以移动。
+- 默认保持屏幕常亮，即使画面静止也不会因闲置熄屏（可在设置中关闭）。可以用 `pmset -g assertions | grep "PeekLock: input locked"` 确认。合盖、按电源键、手动睡眠仍然会熄屏。
 - 菜单栏图标变为 🔒，每块屏幕右上角显示 “Locked · ⌃⌥⌘U to unlock”。
 - 指针变为锁形。为了拿到光标控制权，PeekLock 会在锁定期间成为前台 App，解锁后切回原来的前台 App。可在设置中关闭锁形光标。
 - 按解锁热键（默认 ⌃⌥⌘U）弹出系统认证框（Touch ID 优先，可改用登录密码）。认证期间只放行发往认证框的普通按键和点击，详见[安全模型](security.md)。认证框最多显示 60 秒；取消、失败或超时后，立即回到完全锁定。
@@ -32,6 +33,7 @@ CLI 收到 SIGTERM 或 SIGHUP 时会先解锁再退出，因此可以通过 SSH 
 | Auto-lock when idle | 0（关） | 闲置 N 分钟后自动锁定 |
 | Show badge | 开 | 屏幕角落的锁定标记（点击穿透、不遮挡内容） |
 | Padlock cursor | 开 | 锁形光标 |
+| Keep display awake | 开 | 锁定期间屏幕保持常亮（`PreventUserIdleDisplaySleep` 电源断言，解锁即释放）；关闭后按系统设置的时间熄屏 |
 
 调试构建（`swift build` / `package.py --debug`）会在锁定 **60 秒后自动解锁**，防止开发时把自己锁死。可以用环境变量 `PEEKLOCK_DEBUG_AUTOUNLOCK=<秒>` 调整，设为 `0` 关闭；release 构建没有这个机制。
 

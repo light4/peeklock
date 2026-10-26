@@ -18,6 +18,7 @@ public final class Settings {
     static let idleMinutes = "idleMinutes"
     static let showBadge = "showBadge"
     static let lockCursor = "lockCursor"
+    static let keepDisplayAwake = "keepDisplayAwake"
     static let debugAutoUnlockSeconds = "debugAutoUnlockSeconds"
   }
 
@@ -72,6 +73,12 @@ public final class Settings {
   public var lockCursor: Bool {
     get { defaults.object(forKey: Key.lockCursor) as? Bool ?? true }
     set { defaults.set(newValue, forKey: Key.lockCursor) }
+  }
+
+  /// Prevent idle display sleep while locked (default on).
+  public var keepDisplayAwake: Bool {
+    get { defaults.object(forKey: Key.keepDisplayAwake) as? Bool ?? true }
+    set { defaults.set(newValue, forKey: Key.keepDisplayAwake) }
   }
 
   /// Debug builds only: auto-unlock after N seconds (0 disables). Default 60.

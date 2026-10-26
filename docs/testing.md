@@ -14,7 +14,7 @@ uv run e2e/run.py -- -k bundle    # -- 之后的参数直接交给 pytest
 | --- | --- | --- |
 | `test_cli.py` | `--help` / `--version` / `--status`、未知参数退出码 2、App 未运行时 `--app` 失败、无辅助功能权限时拒绝锁定（退出码 1） | 默认；最后一项只在 CI（`CI=true`）且无权限时运行，因为它会打开系统设置。GitHub 托管的 macOS runner 已有辅助功能权限，所以这一项在 CI 中实际上会跳过 |
 | `test_bundle.py` | 用 `package.py --debug` 打包；检查目录结构（含大小写冲突回归）、Info.plist、codesign；启动第二个实例，确认它是 accessory App 并写入启动日志 | 默认；没有 Apple Development 证书时用 ad-hoc 签名 |
-| `test_lock.py` | 真实锁定：锁定时吞掉按键和滚轮，SIGTERM 后恢复；`-b` 模式；调试构建的自动解锁 | 仅 `--lock`；CI 每次都会运行 |
+| `test_lock.py` | 真实锁定：锁定时吞掉按键和滚轮、持有熄屏断言（`pmset -g assertions`），SIGTERM 后恢复输入并释放断言；`-b` 模式；调试构建的自动解锁 | 仅 `--lock`；CI 每次都会运行 |
 
 ### 锁定测试的原理
 
