@@ -42,7 +42,7 @@ macOS 在授予辅助功能等权限（TCC）时，会记下 App 的 designated 
 
 | Secret | 内容 |
 | --- | --- |
-| `MACOS_CERT_P12_BASE64` | `base64 -i cert.p12` |
+| `MACOS_CERT_P12_BASE64` | `/usr/bin/base64 -i cert.p12`（用系统自带的 base64；Homebrew 的 coreutils 版本不支持 `-i`，会静默上传空值） |
 | `MACOS_CERT_PASSWORD` | p12 密码 |
 
 当前使用自签名证书 “PeekLock Code Signing”（`O=i01.io`，10 年有效）。原因：没有 Developer ID；而 Apple Development 证书会把 Apple ID 邮箱和 Team ID 写进公开的二进制。创建方法：
@@ -54,7 +54,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 36
   -addext "extendedKeyUsage=critical,codeSigning"
 openssl pkcs12 -export -legacy -inkey key.pem -in cert.pem -name "PeekLock Code Signing" \
   -out cert.p12 -passout file:p12.password
-base64 -i cert.p12 | gh secret set MACOS_CERT_P12_BASE64 -R light4/peeklock
+/usr/bin/base64 -i cert.p12 | gh secret set MACOS_CERT_P12_BASE64 -R light4/peeklock
 gh secret set MACOS_CERT_PASSWORD -R light4/peeklock < p12.password
 ```
 
