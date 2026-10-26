@@ -27,9 +27,7 @@ def run(argv: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
 
 
 def find_identity() -> str:
-    out = run(
-        ["security", "find-identity", "-v", "-p", "codesigning"], capture_output=True
-    ).stdout
+    out = run(["security", "find-identity", "-v", "-p", "codesigning"], capture_output=True).stdout
     for line in out.splitlines():
         match = re.search(r'\b([0-9A-F]{40})\s+"(Apple Development: [^"]+)"', line)
         if match:
@@ -106,10 +104,18 @@ def install(app: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--debug", action="store_true", help="build debug (includes 60s safety auto-unlock)")
+    parser.add_argument(
+        "--debug", action="store_true", help="build debug (includes 60s safety auto-unlock)"
+    )
     parser.add_argument("--identity", help="codesign identity (default: first Apple Development)")
-    parser.add_argument("--adhoc", action="store_true", help="ad-hoc sign (permissions reset on every rebuild)")
-    parser.add_argument("--install", action="store_true", help="install to ~/Applications and link CLI to ~/.local/bin")
+    parser.add_argument(
+        "--adhoc", action="store_true", help="ad-hoc sign (permissions reset on every rebuild)"
+    )
+    parser.add_argument(
+        "--install",
+        action="store_true",
+        help="install to ~/Applications and link CLI to ~/.local/bin",
+    )
     args = parser.parse_args()
 
     app = build_bundle("debug" if args.debug else "release")

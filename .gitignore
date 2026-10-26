@@ -7,3 +7,5 @@ dist/
 *.iconset/
 .DS_Store
 xcuserdata/
+.pytest_cache/
+__pycache__/

@@ -1,0 +1,54 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+# Hooks bundled with prek (no network / no Python environment needed).
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace" },
+  { id = "end-of-file-fixer" },
+  { id = "mixed-line-ending" },
+  { id = "check-yaml" },
+  { id = "check-toml" },
+  { id = "check-merge-conflict" },
+  { id = "check-added-large-files" },
+  # PeekLock vs peeklock already collided once on case-insensitive APFS.
+  { id = "check-case-conflict" },
+  { id = "check-executables-have-shebangs" },
+  { id = "check-shebang-scripts-are-executable" },
+  { id = "detect-private-key" },
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "swift-format",
+    name = "swift-format (format)",
+    entry = "xcrun swift-format format --in-place",
+    language = "system",
+    types = ["swift"],
+  },
+  {
+    id = "swift-format-lint",
+    name = "swift-format (lint --strict)",
+    entry = "xcrun swift-format lint --strict",
+    language = "system",
+    types = ["swift"],
+  },
+  {
+    id = "ruff-format",
+    name = "ruff format",
+    entry = "uvx ruff format",
+    language = "system",
+    types = ["python"],
+  },
+  {
+    id = "ruff-check",
+    name = "ruff check",
+    entry = "uvx ruff check --fix",
+    language = "system",
+    types = ["python"],
+  },
+]

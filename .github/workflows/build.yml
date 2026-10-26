@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Toolchain
@@ -17,19 +17,14 @@ jobs:
           swift --version
       - name: swift-format lint
         run: xcrun swift-format lint --strict -r Package.swift Sources scripts/make-icon.swift
-      - name: Build (debug)
-        run: swift build
-      - name: Build (release)
-        run: swift build -c release
-      - name: CLI smoke check
-        run: |
-          .build/release/peeklock --help
-          .build/release/peeklock --version
-          .build/release/peeklock --status
       - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: false
-      - name: Package (ad-hoc signed)
+      - name: ruff
         run: |
-          uv run scripts/package.py --adhoc
-          codesign --verify --strict --verbose=2 build/PeekLock.app
+          uvx ruff format --check scripts e2e
+          uvx ruff check scripts e2e
+      - name: Build (release)
+        run: swift build -c release
+      - name: e2e (CLI + bundle; lock tests are local-only)
+        run: uv run e2e/run.py
