@@ -60,7 +60,7 @@ peeklock --status   查看权限/认证/热键状态
 
 - 菜单栏图标变为 🔒，每块屏幕右上角显示 “Locked · ⌃⌥⌘U to unlock”。
 - 指针变为锁形。为了拿到光标控制权，PeekLock 会在锁定期间成为前台 App，解锁后切回原来的前台 App。这不影响视频播放；如果不需要锁形光标，可以在设置中关闭。
-- 按解锁热键会弹出系统认证框（Touch ID 优先，可以改用密码）。认证框显示期间会**临时放行全部输入**，否则无法输入密码，最多放行 60 秒。取消、失败或超时后立即恢复拦截。
+- 按解锁热键会弹出系统认证框（Touch ID 优先，可以改用密码）。认证框显示期间，**只有发往系统认证界面进程的普通按键和鼠标点击会被放行**，用来输入密码、点“使用密码”或“取消”。发往其他 App 的点击和按键、所有 ⌘/⌃ 组合键（⌘Tab、⌘Q、⌥⌘Esc、⌃⌘Q、⌘Space 等）、滚轮、手势和媒体键仍然会被拦截。认证框最多显示 60 秒；取消、失败或超时后，立即回到完全锁定。
 
 ## 设置（菜单栏 › Settings…）
 
@@ -87,6 +87,7 @@ peeklock --status   查看权限/认证/热键状态
 ## 实现要点
 
 - `EventBlocker`：`CGEvent.tapCreate(tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap)`，拦截 keyDown/keyUp/flagsChanged、所有鼠标按键、滚轮、手势（gesture/magnify/swipe/rotate/smartMagnify/pressure）、平板事件和 `NX_SYSDEFINED`（媒体、音量、亮度键）。拖动事件会改写成 `mouseMoved`，所以按住按键时指针也能动。如果 tap 因超时被系统禁用（`tapDisabledByTimeout/UserInput`），会立即重新启用。
+- 认证期间还有第二道过滤：一个 `cgAnnotatedSessionEventTap`。只有在这一层，事件才带有路由后的目标进程（`kCGEventTargetUnixProcessID`）。用 `proc_pidpath` 取得目标进程路径，只放行 `LocalAuthentication.framework`（coreautha）、`LocalAuthenticationUI.framework`（LocalAuthenticationRemoteService）、`SecurityAgent` 和 PeekLock 自身，其余一律丢弃。两个 tap 中任何一个装不上，都会拒绝锁定。认证期间每个目标进程第一次被放行或拦截时都会记录日志（CLI 输出到 stderr，App 写入 `log stream --predicate 'process == "PeekLock"'`）。
 - `Authenticator`：`LAContext.evaluatePolicy(.deviceOwnerAuthentication)`，带 60 秒超时。
 - `OverlayManager`：每块屏幕一个点击穿透的角标面板，外加一个近乎透明的全屏面板用来承载锁形光标（`-b` 模式下为黑色）。面板加入所有 Space（包括全屏 Space）。
 
@@ -98,7 +99,7 @@ PeekLock 是普通用户态 App，以下情况**拦不住**或**有意放行**�
 - **合盖、强制重启**（长按电源键、⌃⌘电源键）。
 - **Secure Event Input**：如果锁定前有 App 开启了安全输入（例如焦点在密码框、某些终端开启了 Secure Keyboard Entry），macOS 不会把按键交给任何 event tap，按键会**直接穿透**。锁定时一旦检测到会输出警告，用 `peeklock --status` 也能查看。
 - **指针移动是放行的**：触发角（Hot Corners）、Dock 自动显示、全屏时菜单栏滑出仍可能被指针触发。如果触发角配置成“锁定屏幕”或“开始屏幕保护程序”，也会生效。点击仍然无效。
-- **认证框显示期间**：为了能输入密码，所有输入都会放行，最多 60 秒。
+- **认证框显示期间**：只放行发往系统认证界面的普通按键和点击；指针移动与平时一样不受限制。
 - **进程被结束**：其他用户或 SSH 会话可以 `pkill PeekLock` / `pkill peeklock` 解锁。xtrlock 同样如此；CLI 收到 SIGTERM/SIGHUP 时会清理后退出。
 - **辅助技术**：语音控制、Siri、切换控制等可能绕过。
 - **调试构建**：60 秒后自动解锁。

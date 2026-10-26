@@ -40,12 +40,21 @@ public final class LockController {
   private var previousApp: NSRunningApplication?
   private var debugTimer: Timer?
   private var unlockHotkey: Hotkey
+  private var reportedAuthTargets: Set<pid_t> = []
 
   public init(settings: Settings = .shared) {
     self.settings = settings
     unlockHotkey = settings.unlockHotkey
     blocker = EventBlocker(unlockHotkey: unlockHotkey)
     blocker.onUnlockHotkey = { [weak self] in self?.requestUnlock() }
+    blocker.onAuthEventFiltered = { [weak self] allowed, pid, path in
+      guard let self, !self.reportedAuthTargets.contains(pid) else { return }
+      self.reportedAuthTargets.insert(pid)
+      let name = path.isEmpty ? "?" : path
+      self.onMessage?(
+        "During authentication, input to pid \(pid) (\(name)) was \(allowed ? "allowed" : "blocked")."
+      )
+    }
   }
 
   public var isLocked: Bool { state != .unlocked }
@@ -80,7 +89,9 @@ public final class LockController {
   public func requestUnlock() {
     guard state == .locked else { return }
     state = .authenticating
-    blocker.mode = .passthrough
+    // Input may reach only the LocalAuthentication dialog; every other app stays locked.
+    reportedAuthTargets = []
+    blocker.mode = .authenticating
     overlays.setCoversVisible(false)
     overlays.setBadgeText("Authenticating…")
     NSApp.activate(ignoringOtherApps: true)
