@@ -61,12 +61,13 @@ jobs:
           security list-keychains -d user -s "$keychain" \
             $(security list-keychains -d user | tr -d '"')
           rm -f "$RUNNER_TEMP/cert.p12"
-          security find-identity -v -p codesigning "$keychain"
+          # Self-signed, so it is listed without -v ("not trusted" is expected).
+          security find-identity -p codesigning "$keychain"
 
       - name: Package
         run: |
           if [[ "$HAS_CERT" == "true" ]]; then
-            swift scripts/package.swift --zip
+            swift scripts/package.swift --zip --keychain "$RUNNER_TEMP/signing.keychain-db"
           else
             echo "::warning::No MACOS_CERT_P12_BASE64 secret; ad-hoc signing (TCC permissions reset on every update)."
             swift scripts/package.swift --zip --adhoc

@@ -13,7 +13,7 @@ swift test --filter Packaging           # 只跑某个套件
 | 文件 | 内容 | 何时运行 |
 | --- | --- | --- |
 | `CLITests.swift` | `--help`、`--version`（与 `Version.swift` 一致）、`--status`、未知参数退出码 2、App 未运行时 `--app` 失败、无辅助功能权限时拒绝锁定（退出码 1） | 默认。`--app` 一项在 PeekLock.app 运行时跳过；拒绝锁定一项只在 CI（`CI=true`）且无权限时运行，因为它会打开系统设置。GitHub 托管 runner 已有权限，所以这一项实际上会跳过 |
-| `PackagingTests.swift` | 用 `scripts/package.swift --debug --zip --bin-path …` 把已构建的产物打包到临时目录；检查目录结构（含大小写冲突回归）、Info.plist、codesign、zip 往返（sha256、解压后签名、版本）；启动第二个实例，确认它是 accessory App 并写入启动日志 | 默认；没有 Apple Development 证书时用 ad-hoc 签名 |
+| `PackagingTests.swift` | 用 `scripts/package.swift --debug --zip --bin-path …` 把已构建的产物打包到临时目录；检查目录结构（含大小写冲突回归）、Info.plist、codesign、zip 往返（sha256、解压后签名、版本）；启动第二个实例，确认它是 accessory App 并写入启动日志；有签名身份时确认代码要求基于证书（不是 cdhash） | 默认；没有 PeekLock 签名身份（如 CI）时用 ad-hoc 签名 |
 | `LockTests.swift` | 真实锁定：锁定时吞掉按键和滚轮、持有熄屏断言（`pmset -g assertions`），SIGTERM 后恢复输入并释放断言；`-b` 模式；调试构建的自动解锁 | 仅当 `PEEKLOCK_E2E_LOCK=1`；CI 每次都会运行 |
 
 `swift test` 运行期间会占用 `.build` 锁，所以打包测试用 `--bin-path` 复用已构建的二进制，不再次调用 `swift build`。

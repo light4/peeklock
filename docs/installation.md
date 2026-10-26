@@ -12,21 +12,21 @@ swift scripts/package.swift --install         # release 构建 + 签名 + 安装
 `scripts/package.swift` 的步骤：
 
 1. 生成 `build/PeekLock.app`，App 可执行文件位于 `Contents/MacOS/PeekLock`，CLI 位于 `Contents/Helpers/peeklock`。CLI 不放进 `MacOS/` 目录，因为在大小写不敏感的 APFS 上，`peeklock` 和 `PeekLock` 是同一个文件。
-2. 用本机第一个 `Apple Development` 证书签名。
+2. 用自签名证书 “PeekLock Code Signing” 签名，证书放在 `~/.config/peeklock/signing/`，创建方法见 [发布 › 签名](release.md#签名)。这样 TCC 记录的代码要求在各次构建之间保持不变，不必反复授权。
 3. 带 `--install` 时，安装到 `~/Applications/PeekLock.app`，并把 CLI 链接到 `~/.local/bin/peeklock`。
 
 | 选项 | 说明 |
 | --- | --- |
 | `--install` | 安装到 `~/Applications`，并链接 CLI |
 | `--debug` | 打包调试构建（锁定 60 秒后自动解锁） |
-| `--identity <SHA1>` | 指定签名证书 |
+| `--identity <名称>` / `--keychain <路径>` | 指定签名身份和所在 keychain |
 | `--adhoc` | ad-hoc 签名；每次重新构建后都需要重新授权 |
 | `--zip` | 另外生成 `PeekLock-<版本>.zip` 和 `.sha256` |
 | `--bin-path <目录>` | 直接使用已构建的二进制，不再运行 `swift build`（e2e 测试用） |
 | `--output <目录>` | 输出目录，默认 `build/` |
 | `--print-version` | 输出 `Version.swift` 中的版本号 |
 
-用固定的开发证书签名后，重新构建时 TCC 权限可以保留。
+
 
 ## 权限
 

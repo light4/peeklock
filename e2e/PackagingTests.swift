@@ -14,7 +14,7 @@ extension E2E {
         "swift", "scripts/package.swift", "--debug", "--zip",
         "--bin-path", Env.productsDirectory.path, "--output", output.path,
       ]
-      if Env.signingIdentity == nil { argv.append("--adhoc") }
+      if !Env.hasSigningKeychain { argv.append("--adhoc") }
       let result = run(argv, timeout: 600)
       guard result.status == 0 else {
         return .failure(PackagingError(log: result.stdout + result.stderr))
@@ -61,6 +61,17 @@ extension E2E {
         "codesign", "-dv", app.appendingPathComponent("Contents/Helpers/peeklock").path,
       ])
       #expect(cli.stderr.contains("Identifier=\(Env.bundleID).cli"))
+    }
+
+    /// Regression: with the stable identity, TCC must see a certificate-based requirement (not a
+    /// per-build cdhash), otherwise Accessibility has to be granted again after every update.
+    @Test(.enabled("needs the PeekLock signing identity") { Env.hasSigningKeychain })
+    func designatedRequirementIsCertificateBased() throws {
+      let requirement = run(["codesign", "-d", "-r-", try app.path])
+      let text = requirement.stdout + requirement.stderr
+      #expect(text.contains("identifier \"\(Env.bundleID)\""), "\(text)")
+      #expect(text.contains("certificate root = H\""), "\(text)")
+      #expect(!text.contains("cdhash"), "\(text)")
     }
 
     @Test func zipRoundTrip() throws {

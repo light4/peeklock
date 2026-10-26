@@ -37,11 +37,11 @@ enum Env {
 
   static var appRunning: Bool { run(["pgrep", "-x", "PeekLock"]).status == 0 }
 
-  static var signingIdentity: String? {
-    let out = run(["security", "find-identity", "-v", "-p", "codesigning"]).stdout
-    return out.split(separator: "\n").first { $0.contains("\"Apple Development: ") }
-      .flatMap { $0.split(separator: " ").first { $0.count == 40 } }
-      .map(String.init)
+  /// The stable "PeekLock Code Signing" identity created per docs/release.md (absent in CI).
+  static var hasSigningKeychain: Bool {
+    FileManager.default.fileExists(
+      atPath: FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/peeklock/signing/peeklock-signing.keychain-db").path)
   }
 }
 

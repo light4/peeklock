@@ -23,23 +23,50 @@
 
 ## 签名
 
-| 仓库 secrets | 签名方式 | 影响 |
+macOS 在授予辅助功能等权限（TCC）时，会记录 App 的 **designated requirement**（代码要求），之后每次启动都按它识别 App：
+
+| 签名方式 | designated requirement | 影响 |
 | --- | --- | --- |
-| 未配置 | ad-hoc | 能运行，但每个新版本都要重新授予辅助功能权限，因为 TCC 按签名识别 App |
-| `MACOS_CERT_P12_BASE64` + `MACOS_CERT_PASSWORD` | 证书中的身份（Apple Development） | 同一证书签的各版本之间，TCC 权限可以保留 |
+| ad-hoc（`--adhoc`） | `cdhash H"…"`，每次构建都不同 | **每个新版本、每次重新构建都要重新授权** |
+| 自签名证书 “PeekLock Code Signing” | `identifier "io.i01.peeklock" and certificate root = H"…"` | 只要证书不变，权限在各版本之间一直有效 |
 
-配置证书（在本机执行，导出时需要设置一个 .p12 密码）：
+因此，本地构建和 CI 发布都使用同一个**自签名**证书。不用 Apple Development 证书，是因为它会把 Apple ID 邮箱和 Team ID 写进公开发布的二进制。自签名证书不经 Apple 信任：`security find-identity -v` 不会列出它，属于正常现象；codesign 和 TCC 都可以正常使用。
 
-1. 打开钥匙串访问 › 我的证书，右键 “Apple Development: …” › 导出为 `peeklock.p12`。
-2. 写入 secrets：
+### 创建签名身份（每台开发机一次）
 
-   ```bash
-   base64 -i peeklock.p12 | gh secret set MACOS_CERT_P12_BASE64 -R light4/peeklock
-   gh secret set MACOS_CERT_PASSWORD -R light4/peeklock   # 交互输入 .p12 密码
-   rm peeklock.p12
-   ```
+身份放在独立 keychain `~/.config/peeklock/signing/` 中（目录权限 700），不改动登录钥匙串；`scripts/package.swift` 默认从这里读取，并用同目录的 `keychain.password` 解锁。
 
-无论哪种签名，都**没有公证（notarization）**，从浏览器下载后会被 Gatekeeper 拦下，见下文安装步骤。公证需要 Developer ID 证书，目前不在范围内。
+```bash
+umask 077; S=~/.config/peeklock/signing; mkdir -p "$S"; cd "$S"
+uuidgen > keychain.password; uuidgen > p12.password
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 3650 \
+  -subj "/CN=PeekLock Code Signing/O=i01.io" \
+  -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature" \
+  -addext "extendedKeyUsage=critical,codeSigning"
+openssl pkcs12 -export -legacy -inkey key.pem -in cert.pem -name "PeekLock Code Signing" \
+  -out peeklock-signing.p12 -passout file:p12.password
+KC="$S/peeklock-signing.keychain-db"
+security create-keychain -p "$(cat keychain.password)" "$KC"
+security set-keychain-settings "$KC"
+security unlock-keychain -p "$(cat keychain.password)" "$KC"
+security import peeklock-signing.p12 -k "$KC" -P "$(cat p12.password)" -f pkcs12 -T /usr/bin/codesign
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$(cat keychain.password)" "$KC"
+rm key.pem
+```
+
+换一台机器时，不要重新生成证书（否则会变成“另一个 App”），而是把 `peeklock-signing.p12` 和 `p12.password` 带过去，从 `security create-keychain` 那一步开始执行。
+
+### CI 使用同一证书
+
+```bash
+S=~/.config/peeklock/signing
+base64 -i "$S/peeklock-signing.p12" | gh secret set MACOS_CERT_P12_BASE64 -R light4/peeklock
+gh secret set MACOS_CERT_PASSWORD -R light4/peeklock < "$S/p12.password"
+```
+
+配置后，`release.yml` 会把证书导入临时 keychain 并用它签名；没有这两个 secrets 时退回 ad-hoc 签名并给出警告。
+
+无论哪种签名，都**没有公证（notarization）**，从浏览器下载后会被 Gatekeeper 拦下，见下文安装步骤。
 
 ## 从 Release 安装
 
@@ -52,4 +79,4 @@ ln -sf ~/Applications/PeekLock.app/Contents/Helpers/peeklock ~/.local/bin/peeklo
 open ~/Applications/PeekLock.app
 ```
 
-首次启动或签名身份变化后，需要在 系统设置 › 隐私与安全性 › 辅助功能 中重新打开 PeekLock。
+首次安装时需要在 系统设置 › 隐私与安全性 › 辅助功能 中打开 PeekLock。之后只要签名证书不变，升级不需要重新授权。v0.1.0 是 ad-hoc 签名，从它升级时需要授权一次。
