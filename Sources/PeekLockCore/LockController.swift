@@ -44,7 +44,7 @@ public final class LockController {
   /// Per-target tally of keys/clicks seen during the current authentication.
   private var authTally: [String: (allowed: Bool, count: Int)] = [:]
 
-  /// Logs to the unified log (subsystem com.light4.peeklock) and forwards to `onMessage`.
+  /// Logs to the unified log (subsystem io.i01.peeklock) and forwards to `onMessage`.
   private func note(_ message: String) {
     Log.info(message)
     onMessage?(message)

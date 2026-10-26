@@ -27,7 +27,7 @@ CLI 收到 SIGTERM 或 SIGHUP 时会先解锁再退出，因此可以通过 SSH 
 
 | 项 | 默认 | 说明 |
 | --- | --- | --- |
-| Unlock hotkey | ⌃⌥⌘U | 必须包含 ⌃/⌥/⌘ 之一；CLI 与 App 共用（偏好域 `com.light4.peeklock`） |
+| Unlock hotkey | ⌃⌥⌘U | 必须包含 ⌃/⌥/⌘ 之一；CLI 与 App 共用（偏好域 `io.i01.peeklock`） |
 | Lock hotkey | ⌃⌥⌘L | 全局快捷键（Carbon `RegisterEventHotKey`），可关闭 |
 | Auto-lock when idle | 0（关） | 闲置 N 分钟后自动锁定 |
 | Show badge | 开 | 屏幕角落的锁定标记（点击穿透、不遮挡内容） |
@@ -37,10 +37,10 @@ CLI 收到 SIGTERM 或 SIGHUP 时会先解锁再退出，因此可以通过 SSH 
 
 ## 日志
 
-PeekLock 使用 unified logging，subsystem 为 `com.light4.peeklock`：
+PeekLock 使用 unified logging，subsystem 为 `io.i01.peeklock`：
 
 ```bash
-log stream --predicate 'subsystem == "com.light4.peeklock"' --style compact
+log stream --predicate 'subsystem == "io.i01.peeklock"' --style compact
 ```
 
 会记录：启动和权限状态、锁定/解锁、按下解锁热键、认证结果，以及认证期间按目标进程统计的放行/拦截次数。认证汇总的格式（示意）：

@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
-BUNDLE_ID = "com.light4.peeklock"
+BUNDLE_ID = "io.i01.peeklock"
 VERSION = "0.1.0"
 
 

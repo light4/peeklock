@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-BUNDLE_ID = "com.light4.peeklock"
+BUNDLE_ID = "io.i01.peeklock"
 
 
 def run(argv: list[str], *, timeout: float = 60, **kwargs) -> subprocess.CompletedProcess[str]:

@@ -1,13 +1,13 @@
 import Foundation
 
-/// Shared preferences for the menu bar app and the CLI (domain `com.light4.peeklock`).
+/// Shared preferences for the menu bar app and the CLI (domain `io.i01.peeklock`).
 public final class Settings {
-  public static let domain = "com.light4.peeklock"
+  public static let domain = "io.i01.peeklock"
   public static let shared = Settings()
 
-  public static let lockNotification = Notification.Name("com.light4.peeklock.lock")
+  public static let lockNotification = Notification.Name("io.i01.peeklock.lock")
   public static let settingsChangedNotification = Notification.Name(
-    "com.light4.peeklock.settingsChanged")
+    "io.i01.peeklock.settingsChanged")
 
   private let defaults: UserDefaults
 

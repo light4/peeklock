@@ -22,7 +22,7 @@ App target 名为 `PeekLockApp`、CLI 源码放在 `Sources/CLI`，原因相同�
 - **`OverlayManager`**：每块屏幕一个点击穿透的角标面板（屏保层级 +1），外加一个近乎透明的全屏面板承载锁形光标（`-b` 模式下为黑色）。面板加入所有 Space（含全屏 Space）。
 - **`GlobalHotkey`**：Carbon `RegisterEventHotKey`，无需额外权限。
 - **`IdleMonitor`**：`CGEventSource.secondsSinceLastEventType` 轮询。
-- **`Settings`**：偏好域 `com.light4.peeklock`，App 与 CLI 共用。
+- **`Settings`**：偏好域 `io.i01.peeklock`，App 与 CLI 共用。
 
 ## 与 xtrlock 对比
 

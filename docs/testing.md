@@ -29,7 +29,7 @@ GitHub 托管的 macOS runner 默认已授予这些权限，而且是一次性�
 Touch ID、密码输入和系统认证框无法自动驱动，需要人工验收。建议用调试构建（`uv run scripts/package.py --debug --install`），并开着日志：
 
 ```bash
-log stream --predicate 'subsystem == "com.light4.peeklock"' --style compact
+log stream --predicate 'subsystem == "io.i01.peeklock"' --style compact
 ```
 
 | 项目 | 预期 | 实测 |
