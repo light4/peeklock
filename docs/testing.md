@@ -12,9 +12,9 @@ uv run e2e/run.py -- -k bundle    # -- 之后的参数直接交给 pytest
 
 | 文件 | 内容 | 何时运行 |
 | --- | --- | --- |
-| `test_cli.py` | `--help` / `--version` / `--status`、未知参数退出码 2、App 未运行时 `--app` 失败、无辅助功能权限时拒绝锁定（退出码 1） | 默认；最后一项只在 CI（`CI=true`）且无权限时运行，因为它会打开系统设置 |
+| `test_cli.py` | `--help` / `--version` / `--status`、未知参数退出码 2、App 未运行时 `--app` 失败、无辅助功能权限时拒绝锁定（退出码 1） | 默认；最后一项只在 CI（`CI=true`）且无权限时运行，因为它会打开系统设置。GitHub 托管的 macOS runner 已有辅助功能权限，所以这一项在 CI 中实际上会跳过 |
 | `test_bundle.py` | 用 `package.py --debug` 打包；检查目录结构（含大小写冲突回归）、Info.plist、codesign；启动第二个实例，确认它是 accessory App 并写入启动日志 | 默认；没有 Apple Development 证书时用 ad-hoc 签名 |
-| `test_lock.py` | 真实锁定：锁定时吞掉按键和滚轮，SIGTERM 后恢复；`-b` 模式；调试构建的自动解锁 | 仅 `--lock` |
+| `test_lock.py` | 真实锁定：锁定时吞掉按键和滚轮，SIGTERM 后恢复；`-b` 模式；调试构建的自动解锁 | 仅 `--lock`；CI 每次都会运行 |
 
 ### 锁定测试的原理
 
@@ -22,7 +22,7 @@ uv run e2e/run.py -- -k bundle    # -- 之后的参数直接交给 pytest
 
 每项测试都会先在未锁定状态下确认探针能够到达；如果环境本身有问题，测试会直接失败，而不会误判为通过。锁定使用调试构建，并设置 `PEEKLOCK_DEBUG_AUTOUNLOCK` 作为安全网；测试结束时一定会结束 peeklock 进程。
 
-前提：运行测试的终端 App 需要**辅助功能**（投递事件、peeklock 本身）和**输入监控**（监听 tap）权限，否则这些测试会被跳过并说明原因。
+GitHub 托管的 macOS runner 默认已授予这些权限，而且是一次性机器，所以 CI 用 `--lock` 运行这些测试。本地运行的前提：终端 App 需要**辅助功能**（投递事件、peeklock 本身）和**输入监控**（监听 tap）权限，否则这些测试会被跳过并说明原因。
 
 ## 无法自动化的部分（人工验收）
 

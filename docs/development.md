@@ -26,4 +26,4 @@ prek run --all-files
 
 ## CI
 
-`.github/workflows/build.yml`（macos-15）依次执行：swift-format lint、ruff、release 构建、`uv run e2e/run.py`。e2e 包括 debug 构建、ad-hoc 打包、签名校验和 App 启动；锁定测试只在本地运行。
+`.github/workflows/build.yml`（macos-15）依次执行：swift-format lint、ruff、release 构建、`uv run e2e/run.py`。实际运行的是 `uv run e2e/run.py --lock`，覆盖 debug 构建、ad-hoc 打包、签名校验、App 启动，以及真实锁定测试（托管 runner 已有辅助功能权限）。
