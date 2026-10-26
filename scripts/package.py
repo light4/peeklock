@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import plistlib
 import re
@@ -18,7 +19,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
 BUNDLE_ID = "io.i01.peeklock"
-VERSION = "0.1.0"
+VERSION_FILE = ROOT / "Sources" / "PeekLockCore" / "Version.swift"
+
+
+def read_version() -> str:
+    match = re.search(r'peekLockVersion = "([^"]+)"', VERSION_FILE.read_text())
+    if not match:
+        raise SystemExit(f"cannot find peekLockVersion in {VERSION_FILE}")
+    return match.group(1)
+
+
+VERSION = read_version()
 
 
 def run(argv: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
@@ -87,6 +98,18 @@ def sign(app: Path, identity: str) -> None:
     run(["codesign", "--verify", "--strict", "--verbose=2", str(app)])
 
 
+def make_zip(app: Path) -> Path:
+    """Zip with ditto (keeps the code signature intact) and write a .sha256 next to it."""
+    archive = BUILD / f"PeekLock-{VERSION}.zip"
+    archive.unlink(missing_ok=True)
+    run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(archive)])
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    checksum = archive.with_name(archive.name + ".sha256")
+    checksum.write_text(f"{digest}  {archive.name}\n")
+    print(f"zipped {archive}\nsha256 {digest}")
+    return archive
+
+
 def install(app: Path) -> None:
     dest = Path.home() / "Applications" / "PeekLock.app"
     subprocess.run(["pkill", "-x", "PeekLock"], check=False, timeout=10)
@@ -116,12 +139,22 @@ def main() -> int:
         action="store_true",
         help="install to ~/Applications and link CLI to ~/.local/bin",
     )
+    parser.add_argument(
+        "--zip", action="store_true", help="also create build/PeekLock-<version>.zip + .sha256"
+    )
+    parser.add_argument("--print-version", action="store_true", help="print version and exit")
     args = parser.parse_args()
+
+    if args.print_version:
+        print(VERSION)
+        return 0
 
     app = build_bundle("debug" if args.debug else "release")
     identity = "-" if args.adhoc else (args.identity or find_identity())
     sign(app, identity)
     print(f"built {app}")
+    if args.zip:
+        make_zip(app)
     if args.install:
         install(app)
     return 0

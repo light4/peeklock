@@ -27,3 +27,5 @@ prek run --all-files
 ## CI
 
 `.github/workflows/build.yml`（macos-15）依次执行：swift-format lint、ruff、release 构建、`uv run e2e/run.py`。实际运行的是 `uv run e2e/run.py --lock`，覆盖 debug 构建、ad-hoc 打包、签名校验、App 启动，以及真实锁定测试（托管 runner 已有辅助功能权限）。
+
+发布流程见 [release.md](release.md)：推送 `v<版本>` tag 后，由 `.github/workflows/release.yml` 构建并创建 GitHub Release。

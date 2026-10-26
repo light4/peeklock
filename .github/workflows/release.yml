@@ -1,0 +1,110 @@
+name: release
+
+# Push a tag `v<version>` (must equal peekLockVersion in Sources/PeekLockCore/Version.swift)
+# to publish a GitHub Release. "Run workflow" (workflow_dispatch) is a dry run: it builds and
+# uploads the zip as a workflow artifact only.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      HAS_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Resolve version
+        id: version
+        run: |
+          version="$(uv run scripts/package.py --print-version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Version.swift ($version)"
+            exit 1
+          fi
+          echo "Releasing $version (ref $GITHUB_REF_NAME)"
+
+      - name: Lint
+        run: |
+          xcrun swift-format lint --strict -r Package.swift Sources scripts/make-icon.swift
+          uvx ruff format --check scripts e2e
+          uvx ruff check scripts e2e
+
+      - name: e2e (including real-lock tests)
+        run: uv run e2e/run.py --lock
+
+      - name: Import signing certificate
+        if: env.HAS_CERT == 'true'
+        env:
+          P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" \
+            -f pkcs12 -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" \
+            $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: Package
+        run: |
+          if [[ "$HAS_CERT" == "true" ]]; then
+            uv run scripts/package.py --zip
+          else
+            echo "::warning::No MACOS_CERT_P12_BASE64 secret; ad-hoc signing (TCC permissions reset on every update)."
+            uv run scripts/package.py --zip --adhoc
+          fi
+          codesign --verify --strict --verbose=2 build/PeekLock.app
+          codesign -dv build/PeekLock.app 2>&1 | grep -E "Identifier|Authority|TeamIdentifier|Signature"
+
+      - name: Check archive
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd build
+          shasum -a 256 -c "PeekLock-$VERSION.zip.sha256"
+          rm -rf verify && mkdir verify
+          ditto -x -k "PeekLock-$VERSION.zip" verify
+          codesign --verify --strict verify/PeekLock.app
+          test "$(verify/PeekLock.app/Contents/Helpers/peeklock --version)" = "peeklock $VERSION"
+          test "$(plutil -extract CFBundleShortVersionString raw verify/PeekLock.app/Contents/Info.plist)" = "$VERSION"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: PeekLock-${{ steps.version.outputs.version }}
+          path: |
+            build/PeekLock-${{ steps.version.outputs.version }}.zip
+            build/PeekLock-${{ steps.version.outputs.version }}.zip.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "build/PeekLock-$VERSION.zip" "build/PeekLock-$VERSION.zip.sha256" \
+            --verify-tag --title "PeekLock $VERSION" --generate-notes

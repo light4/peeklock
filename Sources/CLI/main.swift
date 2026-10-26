@@ -1,7 +1,7 @@
 import AppKit
 import PeekLockCore
 
-let version = "0.1.0"
+let version = peekLockVersion
 let usage = """
   Usage: peeklock [-b] [--app] [--status] [--help] [--version]
 

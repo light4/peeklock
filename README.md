@@ -22,3 +22,4 @@ peeklock                              # 或者在命令行锁定（-b 同时黑�
 - [安全模型与已知缺口](docs/security.md)
 - [测试](docs/testing.md)：e2e 测试与人工验收清单
 - [开发](docs/development.md)：目录结构、prek、CI
+- [发布](docs/release.md)：打 tag 发布、签名，以及从 Release 安装
