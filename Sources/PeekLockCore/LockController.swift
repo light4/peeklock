@@ -41,8 +41,9 @@ public final class LockController {
   private var debugTimer: Timer?
   private let displayAwake = DisplayAwake()
   private var unlockHotkey: Hotkey
-  private var reportedAuthTargets: Set<pid_t> = []
-  /// Per-target tally of keys/clicks seen during the current authentication.
+  /// Per-target tally of keys/clicks seen during the current authentication;
+  /// written to the unified log as a single audit line when authentication finishes.
+  /// Not surfaced via `onMessage`: routing input to the auth dialog is expected, not news.
   private var authTally: [String: (allowed: Bool, count: Int)] = [:]
 
   /// Logs to the unified log (subsystem io.i01.peeklock) and forwards to `onMessage`.
@@ -61,12 +62,6 @@ public final class LockController {
       let key = "\(pid) \(path.isEmpty ? "?" : path)"
       let previous = self.authTally[key]?.count ?? 0
       self.authTally[key] = (allowed, previous + 1)
-      guard !self.reportedAuthTargets.contains(pid) else { return }
-      self.reportedAuthTargets.insert(pid)
-      let name = path.isEmpty ? "?" : path
-      self.note(
-        "During authentication, input to pid \(pid) (\(name)) was \(allowed ? "allowed" : "blocked")."
-      )
     }
   }
 
@@ -108,7 +103,6 @@ public final class LockController {
     guard state == .locked else { return }
     state = .authenticating
     // Input may reach only the LocalAuthentication dialog; every other app stays locked.
-    reportedAuthTargets = []
     authTally = [:]
     Log.info("Unlock hotkey pressed; showing authentication dialog.")
     blocker.mode = .authenticating
