@@ -23,50 +23,46 @@
 
 ## 签名
 
-macOS 在授予辅助功能等权限（TCC）时，会记录 App 的 **designated requirement**（代码要求），之后每次启动都按它识别 App：
+做法与 [Ghostty](https://github.com/ghostty-org/ghostty) 相同：
 
-| 签名方式 | designated requirement | 影响 |
+| 构建 | Bundle ID | 签名 |
 | --- | --- | --- |
-| ad-hoc（`--adhoc`） | `cdhash H"…"`，每次构建都不同 | **每个新版本、每次重新构建都要重新授权** |
-| 自签名证书 “PeekLock Code Signing” | `identifier "io.i01.peeklock" and certificate root = H"…"` | 只要证书不变，权限在各版本之间一直有效 |
+| 本地 release（`swift scripts/package.swift`） | `io.i01.peeklock` | ad-hoc |
+| 本地 debug（`--debug`，e2e 也用它） | `io.i01.peeklock.debug`，名为 “PeekLock Debug” | ad-hoc |
+| GitHub Release（CI） | `io.i01.peeklock` | secrets 中的证书 |
 
-因此，本地构建和 CI 发布都使用同一个**自签名**证书。不用 Apple Development 证书，是因为它会把 Apple ID 邮箱和 Team ID 写进公开发布的二进制。自签名证书不经 Apple 信任：`security find-identity -v` 不会列出它，属于正常现象；codesign 和 TCC 都可以正常使用。
+macOS 在授予辅助功能等权限（TCC）时，会记下 App 的 designated requirement（代码要求），按 bundle ID 保存。
 
-### 创建签名身份（每台开发机一次）
+- ad-hoc 签名的代码要求是 `cdhash H"…"`，每次构建都不同。因此 debug 构建使用单独的 bundle ID，不会覆盖已安装 release 的授权；本地重新构建 release 后需要重新授权一次。
+- CI 用证书签名，代码要求是 `identifier "io.i01.peeklock" and certificate root = H"…"`，只要证书不变，升级就无需重新授权。`release.yml` 会检查这一点。
 
-身份放在独立 keychain `~/.config/peeklock/signing/` 中（目录权限 700），不改动登录钥匙串；`scripts/package.swift` 默认从这里读取，并用同目录的 `keychain.password` 解锁。
+### CI 证书
+
+`release.yml` 把 secrets 中的 p12 导入临时 keychain，再用 `--identity "$MACOS_CERT_NAME"` 签名。没有 secrets 时退回 ad-hoc，并给出警告。
+
+| Secret | 内容 |
+| --- | --- |
+| `MACOS_CERT_P12_BASE64` | `base64 -i cert.p12` |
+| `MACOS_CERT_PASSWORD` | p12 密码 |
+
+当前使用自签名证书 “PeekLock Code Signing”（`O=i01.io`，10 年有效）。原因：没有 Developer ID；而 Apple Development 证书会把 Apple ID 邮箱和 Team ID 写进公开的二进制。创建方法：
 
 ```bash
-umask 077; S=~/.config/peeklock/signing; mkdir -p "$S"; cd "$S"
-uuidgen > keychain.password; uuidgen > p12.password
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 3650 \
   -subj "/CN=PeekLock Code Signing/O=i01.io" \
   -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature" \
   -addext "extendedKeyUsage=critical,codeSigning"
 openssl pkcs12 -export -legacy -inkey key.pem -in cert.pem -name "PeekLock Code Signing" \
-  -out peeklock-signing.p12 -passout file:p12.password
-KC="$S/peeklock-signing.keychain-db"
-security create-keychain -p "$(cat keychain.password)" "$KC"
-security set-keychain-settings "$KC"
-security unlock-keychain -p "$(cat keychain.password)" "$KC"
-security import peeklock-signing.p12 -k "$KC" -P "$(cat p12.password)" -f pkcs12 -T /usr/bin/codesign
-security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$(cat keychain.password)" "$KC"
-rm key.pem
+  -out cert.p12 -passout file:p12.password
+base64 -i cert.p12 | gh secret set MACOS_CERT_P12_BASE64 -R light4/peeklock
+gh secret set MACOS_CERT_PASSWORD -R light4/peeklock < p12.password
 ```
 
-换一台机器时，不要重新生成证书（否则会变成“另一个 App”），而是把 `peeklock-signing.p12` 和 `p12.password` 带过去，从 `security create-keychain` 那一步开始执行。
+请离线备份 `cert.p12` 和密码。证书一旦更换，已授权的用户需要重新授权一次。
 
-### CI 使用同一证书
+如果以后有 Developer ID：把 p12 换掉，把 `MACOS_CERT_NAME` 改成 “Developer ID Application: …”，再按 Ghostty 的做法加上 `notarytool` 公证，就不再需要下面的 `xattr` 步骤。
 
-```bash
-S=~/.config/peeklock/signing
-base64 -i "$S/peeklock-signing.p12" | gh secret set MACOS_CERT_P12_BASE64 -R light4/peeklock
-gh secret set MACOS_CERT_PASSWORD -R light4/peeklock < "$S/p12.password"
-```
-
-配置后，`release.yml` 会把证书导入临时 keychain 并用它签名；没有这两个 secrets 时退回 ad-hoc 签名并给出警告。
-
-无论哪种签名，都**没有公证（notarization）**，从浏览器下载后会被 Gatekeeper 拦下，见下文安装步骤。
+目前没有公证（notarization），从浏览器下载后会被 Gatekeeper 拦下，见下文安装步骤。
 
 ## 从 Release 安装
 
@@ -79,4 +75,4 @@ ln -sf ~/Applications/PeekLock.app/Contents/Helpers/peeklock ~/.local/bin/peeklo
 open ~/Applications/PeekLock.app
 ```
 
-首次安装时需要在 系统设置 › 隐私与安全性 › 辅助功能 中打开 PeekLock。之后只要签名证书不变，升级不需要重新授权。v0.1.0 是 ad-hoc 签名，从它升级时需要授权一次。
+首次安装时需要在 系统设置 › 隐私与安全性 › 辅助功能 中打开 PeekLock。之后只要 CI 证书不变，升级就不需要重新授权。v0.1.0 是 ad-hoc 签名，从它升级时需要再授权一次。

@@ -14,7 +14,6 @@ extension E2E {
         "swift", "scripts/package.swift", "--debug", "--zip",
         "--bin-path", Env.productsDirectory.path, "--output", output.path,
       ]
-      if !Env.hasSigningKeychain { argv.append("--adhoc") }
       let result = run(argv, timeout: 600)
       guard result.status == 0 else {
         return .failure(PackagingError(log: result.stdout + result.stderr))
@@ -46,7 +45,8 @@ extension E2E {
       let data = try Data(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
       let info = try #require(
         try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
-      #expect(info["CFBundleIdentifier"] as? String == Env.bundleID)
+      #expect(info["CFBundleIdentifier"] as? String == Env.debugBundleID)
+      #expect(info["CFBundleName"] as? String == "PeekLock Debug")
       #expect(info["CFBundleExecutable"] as? String == "PeekLock")
       #expect(info["LSUIElement"] as? Bool == true)
       #expect(info["CFBundleIconFile"] as? String == "AppIcon")
@@ -60,18 +60,25 @@ extension E2E {
       let cli = run([
         "codesign", "-dv", app.appendingPathComponent("Contents/Helpers/peeklock").path,
       ])
-      #expect(cli.stderr.contains("Identifier=\(Env.bundleID).cli"))
+      #expect(cli.stderr.contains("Identifier=\(Env.debugBundleID).cli"))
     }
 
-    /// Regression: with the stable identity, TCC must see a certificate-based requirement (not a
-    /// per-build cdhash), otherwise Accessibility has to be granted again after every update.
-    @Test(.enabled("needs the PeekLock signing identity") { Env.hasSigningKeychain })
-    func designatedRequirementIsCertificateBased() throws {
-      let requirement = run(["codesign", "-d", "-r-", try app.path])
-      let text = requirement.stdout + requirement.stderr
-      #expect(text.contains("identifier \"\(Env.bundleID)\""), "\(text)")
-      #expect(text.contains("certificate root = H\""), "\(text)")
-      #expect(!text.contains("cdhash"), "\(text)")
+    /// Regression: a release package keeps the release bundle ID; only --debug gets ".debug".
+    /// Sharing one ID between differently signed builds made macOS drop the Accessibility grant.
+    @Test func releaseAndDebugUseDistinctBundleIDs() throws {
+      let output = try app.deletingLastPathComponent().appendingPathComponent("release")
+      let result = run(
+        [
+          "swift", "scripts/package.swift", "--bin-path", Env.productsDirectory.path,
+          "--output", output.path,
+        ], timeout: 600)
+      #expect(result.status == 0, "\(result.stdout)\(result.stderr)")
+      let data = try Data(
+        contentsOf: output.appendingPathComponent("PeekLock.app/Contents/Info.plist"))
+      let info = try #require(
+        try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+      #expect(info["CFBundleIdentifier"] as? String == Env.bundleID)
+      #expect(info["CFBundleName"] as? String == "PeekLock")
     }
 
     @Test func zipRoundTrip() throws {
@@ -126,7 +133,7 @@ extension E2E {
 
       let running = try #require(NSRunningApplication(processIdentifier: launched))
       #expect(running.activationPolicy == .accessory)
-      #expect(running.bundleIdentifier == Env.bundleID)
+      #expect(running.bundleIdentifier == Env.debugBundleID)
     }
   }
 }

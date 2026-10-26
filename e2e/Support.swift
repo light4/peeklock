@@ -10,6 +10,8 @@ enum Env {
   static let repoRoot = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent()
   static let bundleID = "io.i01.peeklock"
+  /// `package.swift --debug` builds use their own ID so they never clobber the release TCC grant.
+  static let debugBundleID = "io.i01.peeklock.debug"
 
   /// Directory containing the built `peeklock` and `PeekLockApp` products.
   static let productsDirectory: URL = {
@@ -37,12 +39,6 @@ enum Env {
 
   static var appRunning: Bool { run(["pgrep", "-x", "PeekLock"]).status == 0 }
 
-  /// The stable "PeekLock Code Signing" identity created per docs/release.md (absent in CI).
-  static var hasSigningKeychain: Bool {
-    FileManager.default.fileExists(
-      atPath: FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/peeklock/signing/peeklock-signing.keychain-db").path)
-  }
 }
 
 struct ProcessResult {

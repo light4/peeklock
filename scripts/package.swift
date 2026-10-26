@@ -4,7 +4,11 @@ import CryptoKit
 import Foundation
 
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-let bundleID = "io.i01.peeklock"
+let releaseBundleID = "io.i01.peeklock"
+
+/// Debug builds get their own bundle ID (as Ghostty does with com.mitchellh.ghostty.debug) so
+/// their ad-hoc signature never replaces the TCC grant of the installed release.
+func bundleID(debug: Bool) -> String { debug ? "\(releaseBundleID).debug" : releaseBundleID }
 let fm = FileManager.default
 
 let usage = """
@@ -13,13 +17,13 @@ let usage = """
   Build PeekLock.app (App + bundled peeklock CLI), sign it, optionally zip and install.
 
   Options:
-    --debug            Package a debug build (includes the 60s safety auto-unlock)
-    --identity NAME    codesign identity (default: "PeekLock Code Signing")
-    --keychain PATH    Keychain holding the identity (default: ~/.config/peeklock/signing/
-                       peeklock-signing.keychain-db, unlocked with keychain.password next to it)
-    --adhoc            Ad-hoc sign (TCC permissions reset on every rebuild)
+    --debug            Package a debug build (60s safety auto-unlock) as "PeekLock Debug" with
+                       bundle ID io.i01.peeklock.debug, so it never touches the release's TCC grant
+    --identity NAME    codesign identity from the keychain search list (default: ad-hoc).
+                       Releases are signed in CI; local builds are ad-hoc, like Ghostty.
     --zip              Also create <output>/PeekLock-<version>.zip and .sha256
-    --install          Install to ~/Applications and link the CLI to ~/.local/bin/peeklock
+    --install          Install to ~/Applications (PeekLock.app, or "PeekLock Debug.app" with
+                       --debug); release builds also link the CLI to ~/.local/bin/peeklock
     --bin-path DIR     Use already-built binaries from DIR instead of running `swift build`
     --output DIR       Output directory (default: build/)
     --print-version    Print the version from Sources/PeekLockCore/Version.swift and exit
@@ -59,46 +63,6 @@ func readVersion() throws -> String {
   return text[range].split(separator: "\"")[1].description
 }
 
-/// Stable self-signed identity shared by local builds and releases, so the TCC code requirement
-/// (`identifier … and certificate root = H"…"`) stays the same across versions.
-let defaultIdentity = "PeekLock Code Signing"
-let defaultSigningDir = fm.homeDirectoryForCurrentUser
-  .appendingPathComponent(".config/peeklock/signing")
-
-struct Signer {
-  var identity: String
-  var keychain: String?
-}
-
-/// Resolves the identity/keychain and unlocks the default keychain if needed.
-func resolveSigner(identity: String?, keychain: String?) throws -> Signer {
-  if let identity, keychain == nil { return Signer(identity: identity, keychain: nil) }
-  let keychainPath =
-    keychain
-    ?? defaultSigningDir.appendingPathComponent("peeklock-signing.keychain-db").path
-  guard fm.fileExists(atPath: keychainPath) else {
-    throw Failure(
-      description: """
-        signing keychain not found: \(keychainPath)
-        Create the PeekLock signing identity (see docs/release.md), or use --adhoc.
-        """)
-  }
-  let passwordFile = URL(fileURLWithPath: keychainPath).deletingLastPathComponent()
-    .appendingPathComponent("keychain.password")
-  if let password = try? String(contentsOf: passwordFile, encoding: .utf8)
-    .trimmingCharacters(in: .whitespacesAndNewlines)
-  {
-    try run(["security", "unlock-keychain", "-p", password, keychainPath], quiet: true)
-  }
-  let name = identity ?? defaultIdentity
-  let found = try run(
-    ["security", "find-identity", "-p", "codesigning", keychainPath], capture: true, quiet: true)
-  guard found.contains("\"\(name)\"") || found.contains(name) else {
-    throw Failure(description: "identity \"\(name)\" not found in \(keychainPath)")
-  }
-  return Signer(identity: name, keychain: keychainPath)
-}
-
 // MARK: - Steps
 
 func buildBinaries(config: String) throws -> URL {
@@ -108,7 +72,8 @@ func buildBinaries(config: String) throws -> URL {
   return URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
 }
 
-func assembleBundle(binDir: URL, output: URL, version: String) throws -> URL {
+func assembleBundle(binDir: URL, output: URL, version: String, debug: Bool) throws -> URL {
+  let name = debug ? "PeekLock Debug" : "PeekLock"
   let app = output.appendingPathComponent("PeekLock.app")
   try? fm.removeItem(at: app)
   let contents = app.appendingPathComponent("Contents")
@@ -133,9 +98,9 @@ func assembleBundle(binDir: URL, output: URL, version: String) throws -> URL {
   ])
 
   let info: [String: Any] = [
-    "CFBundleIdentifier": bundleID,
-    "CFBundleName": "PeekLock",
-    "CFBundleDisplayName": "PeekLock",
+    "CFBundleIdentifier": bundleID(debug: debug),
+    "CFBundleName": name,
+    "CFBundleDisplayName": name,
     "CFBundleExecutable": "PeekLock",
     "CFBundleIconFile": "AppIcon",
     "CFBundlePackageType": "APPL",
@@ -151,14 +116,13 @@ func assembleBundle(binDir: URL, output: URL, version: String) throws -> URL {
   return app
 }
 
-func sign(_ app: URL, signer: Signer) throws {
-  var base = [
-    "codesign", "--force", "--options", "runtime", "--timestamp=none", "--sign", signer.identity,
+func sign(_ app: URL, identity: String, debug: Bool) throws {
+  let base = [
+    "codesign", "--force", "--options", "runtime", "--timestamp=none", "--sign", identity,
   ]
-  if let keychain = signer.keychain { base += ["--keychain", keychain] }
   try run(
     base + [
-      "--identifier", "\(bundleID).cli",
+      "--identifier", "\(bundleID(debug: debug)).cli",
       app.appendingPathComponent("Contents/Helpers/peeklock").path,
     ])
   try run(base + [app.path])
@@ -178,17 +142,25 @@ func makeZip(_ app: URL, output: URL, version: String) throws {
   print("zipped \(archive.path)\nsha256 \(digest)")
 }
 
-func install(_ app: URL) throws {
+/// Release → ~/Applications/PeekLock.app + ~/.local/bin/peeklock.
+/// Debug → ~/Applications/PeekLock Debug.app only, so it never replaces the release.
+func install(_ app: URL, debug: Bool) throws {
   let home = fm.homeDirectoryForCurrentUser
-  let dest = home.appendingPathComponent("Applications/PeekLock.app")
-  _ = try? run(["pkill", "-x", "PeekLock"], quiet: true)
+  let dest = home.appendingPathComponent(
+    debug ? "Applications/PeekLock Debug.app" : "Applications/PeekLock.app")
+  _ = try? run(
+    ["pkill", "-f", dest.appendingPathComponent("Contents/MacOS/PeekLock").path], quiet: true)
   try? fm.removeItem(at: dest)
   try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
   try run(["ditto", app.path, dest.path])
+  let target = dest.appendingPathComponent("Contents/Helpers/peeklock")
+  guard !debug else {
+    print("installed \(dest.path)\ndebug CLI: \(target.path)")
+    return
+  }
   let link = home.appendingPathComponent(".local/bin/peeklock")
   try fm.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
   try? fm.removeItem(at: link)
-  let target = dest.appendingPathComponent("Contents/Helpers/peeklock")
   try fm.createSymbolicLink(at: link, withDestinationURL: target)
   print("installed \(dest.path)\nlinked    \(link.path) -> \(target.path)")
 }
@@ -197,11 +169,9 @@ func install(_ app: URL) throws {
 
 func main() throws {
   var debug = false
-  var adhoc = false
   var zip = false
   var doInstall = false
   var identity: String?
-  var keychain: String?
   var binPath: String?
   var outputPath = root.appendingPathComponent("build").path
 
@@ -213,11 +183,9 @@ func main() throws {
   while let arg = args.popFirst() {
     switch arg {
     case "--debug": debug = true
-    case "--adhoc": adhoc = true
     case "--zip": zip = true
     case "--install": doInstall = true
     case "--identity": identity = try value(arg)
-    case "--keychain": keychain = try value(arg)
     case "--bin-path": binPath = try value(arg)
     case "--output": outputPath = try value(arg)
     case "--print-version":
@@ -237,15 +205,11 @@ func main() throws {
   let binDir =
     try binPath.map { URL(fileURLWithPath: $0, relativeTo: root).standardizedFileURL }
     ?? buildBinaries(config: debug ? "debug" : "release")
-  let app = try assembleBundle(binDir: binDir, output: output, version: version)
-  let signer =
-    adhoc
-    ? Signer(identity: "-", keychain: nil)
-    : try resolveSigner(identity: identity, keychain: keychain)
-  try sign(app, signer: signer)
+  let app = try assembleBundle(binDir: binDir, output: output, version: version, debug: debug)
+  try sign(app, identity: identity ?? "-", debug: debug)
   print("built \(app.path) (\(version))")
   if zip { try makeZip(app, output: output, version: version) }
-  if doInstall { try install(app) }
+  if doInstall { try install(app, debug: debug) }
 }
 
 do {
