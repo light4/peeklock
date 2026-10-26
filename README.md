@@ -74,6 +74,16 @@ peeklock --status   查看权限/认证/热键状态
 
 调试构建（`swift build` / `package.py --debug`）会在锁定 **60 秒后自动解锁**，防止开发时把自己锁死。可以用 `PEEKLOCK_DEBUG_AUTOUNLOCK=<秒>` 调整，设为 `0` 关闭；release 构建没有这个机制。
 
+## 日志
+
+PeekLock 使用 unified logging，subsystem 为 `com.light4.peeklock`：
+
+```bash
+log stream --predicate 'subsystem == "com.light4.peeklock"' --style compact
+```
+
+会记录：启动和权限状态、锁定/解锁、按下解锁热键、认证结果，以及认证期间按目标进程统计的放行/拦截次数。
+
 ## 与 xtrlock 对比
 
 | | xtrlock | PeekLock |
@@ -87,7 +97,7 @@ peeklock --status   查看权限/认证/热键状态
 ## 实现要点
 
 - `EventBlocker`：`CGEvent.tapCreate(tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap)`，拦截 keyDown/keyUp/flagsChanged、所有鼠标按键、滚轮、手势（gesture/magnify/swipe/rotate/smartMagnify/pressure）、平板事件和 `NX_SYSDEFINED`（媒体、音量、亮度键）。拖动事件会改写成 `mouseMoved`，所以按住按键时指针也能动。如果 tap 因超时被系统禁用（`tapDisabledByTimeout/UserInput`），会立即重新启用。
-- 认证期间还有第二道过滤：一个 `cgAnnotatedSessionEventTap`。只有在这一层，事件才带有路由后的目标进程（`kCGEventTargetUnixProcessID`）。用 `proc_pidpath` 取得目标进程路径，只放行 `LocalAuthentication.framework`（coreautha）、`LocalAuthenticationUI.framework`（LocalAuthenticationRemoteService）、`SecurityAgent` 和 PeekLock 自身，其余一律丢弃。两个 tap 中任何一个装不上，都会拒绝锁定。认证期间每个目标进程第一次被放行或拦截时都会记录日志（CLI 输出到 stderr，App 写入 `log stream --predicate 'process == "PeekLock"'`）。
+- 认证期间还有第二道过滤：一个 `cgAnnotatedSessionEventTap`。只有在这一层，事件才带有路由后的目标进程（`kCGEventTargetUnixProcessID`）。用 `proc_pidpath` 取得目标进程路径，只放行 `LocalAuthentication.framework`（coreautha）、`LocalAuthenticationUI.framework`（LocalAuthenticationRemoteService）、`SecurityAgent` 和 PeekLock 自身，其余一律丢弃。两个 tap 中任何一个装不上，都会拒绝锁定。认证期间每个目标进程第一次被放行或拦截时都会记录日志（CLI 同时输出到 stderr）。每次认证结束会写一条汇总，列出各目标进程被放行或拦截的事件次数。。
 - `Authenticator`：`LAContext.evaluatePolicy(.deviceOwnerAuthentication)`，带 60 秒超时。
 - `OverlayManager`：每块屏幕一个点击穿透的角标面板，外加一个近乎透明的全屏面板用来承载锁形光标（`-b` 模式下为黑色）。面板加入所有 Space（包括全屏 Space）。
 

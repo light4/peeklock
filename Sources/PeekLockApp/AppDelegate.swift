@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private var statusLine: NSMenuItem!
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    Log.info("PeekLock started. \(Permissions.summary)")
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     buildMenu()
     updateIcon()
@@ -24,7 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
       self?.refreshMenu()
     }
     controller.onMessage = { [weak self] message in
-      NSLog("PeekLock: %@", message)
       self?.statusLine.title = message
       self?.statusLine.isHidden = false
     }
@@ -59,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
   func applySettings() {
     if settings.lockHotkeyEnabled {
       if lockHotkey?.register(settings.lockHotkey) != true {
-        controller.onMessage?("Could not register lock hotkey \(settings.lockHotkey)")
+        Log.error("Could not register lock hotkey \(settings.lockHotkey)")
       }
     } else {
       lockHotkey?.unregister()
@@ -130,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     do {
       try controller.lock(blank: blank)
     } catch {
-      NSLog("PeekLock: %@", "\(error)")
+      Log.error("Lock refused: \(error)")
       if interactive { showPermissionAlert(message: "\(error)") }
     }
   }

@@ -41,6 +41,14 @@ public final class LockController {
   private var debugTimer: Timer?
   private var unlockHotkey: Hotkey
   private var reportedAuthTargets: Set<pid_t> = []
+  /// Per-target tally of keys/clicks seen during the current authentication.
+  private var authTally: [String: (allowed: Bool, count: Int)] = [:]
+
+  /// Logs to the unified log (subsystem com.light4.peeklock) and forwards to `onMessage`.
+  private func note(_ message: String) {
+    Log.info(message)
+    onMessage?(message)
+  }
 
   public init(settings: Settings = .shared) {
     self.settings = settings
@@ -48,10 +56,14 @@ public final class LockController {
     blocker = EventBlocker(unlockHotkey: unlockHotkey)
     blocker.onUnlockHotkey = { [weak self] in self?.requestUnlock() }
     blocker.onAuthEventFiltered = { [weak self] allowed, pid, path in
-      guard let self, !self.reportedAuthTargets.contains(pid) else { return }
+      guard let self else { return }
+      let key = "\(pid) \(path.isEmpty ? "?" : path)"
+      let previous = self.authTally[key]?.count ?? 0
+      self.authTally[key] = (allowed, previous + 1)
+      guard !self.reportedAuthTargets.contains(pid) else { return }
       self.reportedAuthTargets.insert(pid)
       let name = path.isEmpty ? "?" : path
-      self.onMessage?(
+      self.note(
         "During authentication, input to pid \(pid) (\(name)) was \(allowed ? "allowed" : "blocked")."
       )
     }
@@ -71,7 +83,7 @@ public final class LockController {
     guard blocker.start() else { throw LockError.tapUnavailable }
 
     if Permissions.secureInputEnabled {
-      onMessage?(
+      note(
         "Warning: Secure Event Input is enabled by another app; keystrokes may bypass PeekLock.")
     }
 
@@ -82,6 +94,7 @@ public final class LockController {
       blank: blank, useCursor: settings.lockCursor, showBadge: settings.showBadge,
       badgeText: lockedBadgeText)
     state = .locked
+    Log.info("Locked (blank: \(blank)). \(Permissions.summary)")
     armDebugAutoUnlock()
   }
 
@@ -91,12 +104,15 @@ public final class LockController {
     state = .authenticating
     // Input may reach only the LocalAuthentication dialog; every other app stays locked.
     reportedAuthTargets = []
+    authTally = [:]
+    Log.info("Unlock hotkey pressed; showing authentication dialog.")
     blocker.mode = .authenticating
     overlays.setCoversVisible(false)
     overlays.setBadgeText("Authenticating…")
     NSApp.activate(ignoringOtherApps: true)
     authenticator.authenticate(reason: "unlock PeekLock") { [weak self] outcome in
       guard let self else { return }
+      self.logAuthSummary(outcome)
       switch outcome {
       case .success:
         self.unlock()
@@ -110,13 +126,23 @@ public final class LockController {
     }
   }
 
+  private func logAuthSummary(_ outcome: Authenticator.Outcome) {
+    let targets =
+      authTally.isEmpty
+      ? "no keys/clicks were routed"
+      : authTally.sorted { $0.key < $1.key }
+        .map { "\($0.value.allowed ? "ALLOWED" : "BLOCKED") \($0.value.count)x -> \($0.key)" }
+        .joined(separator: "; ")
+    Log.info("Authentication finished: \(outcome). Input during auth: \(targets)")
+  }
+
   private func relock(message: String?) {
     guard state == .authenticating else { return }
     blocker.mode = .blocking
     overlays.setBadgeText(lockedBadgeText)
     overlays.setCoversVisible(true)
     state = .locked
-    if let message { onMessage?(message) }
+    if let message { note(message) }
   }
 
   /// Unconditionally releases the lock (after successful auth, debug timer or termination).
@@ -129,6 +155,7 @@ public final class LockController {
     overlays.hide()
     NSCursor.arrow.set()
     state = .unlocked
+    Log.info("Unlocked.")
     previousApp?.activate()
     previousApp = nil
   }
@@ -137,10 +164,10 @@ public final class LockController {
     #if DEBUG
       let seconds = settings.debugAutoUnlockSeconds
       guard seconds > 0 else { return }
-      onMessage?("DEBUG build: auto-unlocking in \(seconds)s (safety net).")
+      note("DEBUG build: auto-unlocking in \(seconds)s (safety net).")
       debugTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(seconds), repeats: false) {
         [weak self] _ in
-        self?.onMessage?("DEBUG build: safety auto-unlock fired.")
+        self?.note("DEBUG build: safety auto-unlock fired.")
         self?.unlock()
       }
     #endif
