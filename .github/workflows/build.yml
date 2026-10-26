@@ -26,5 +26,7 @@ jobs:
           uvx ruff check scripts e2e
       - name: Build (release)
         run: swift build -c release
-      - name: e2e (CLI + bundle; lock tests are local-only)
-        run: uv run e2e/run.py
+      # Hosted macOS runners grant Accessibility, so the real-lock tests can run there
+      # safely (disposable machine); they skip with a reason if a permission is missing.
+      - name: e2e (including real-lock tests)
+        run: uv run e2e/run.py --lock
