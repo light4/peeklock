@@ -1,26 +1,36 @@
 import Foundation
 import IOKit.pwr_mgt
 
-/// Holds a `PreventUserIdleDisplaySleep` power assertion (visible in `pmset -g assertions`).
-final class DisplayAwake {
-  static let assertionName = "PeekLock: input locked"
-  private var assertionID: IOPMAssertionID = 0
-  private(set) var isHeld = false
+/// Holds a `PreventUserIdleDisplaySleep` power assertion (visible in `pmset -g assertions`),
+/// the same assertion `caffeinate -d` takes.
+public final class DisplayAwake {
+  /// Held by `LockController` while input is locked.
+  public static let lockAssertionName = "PeekLock: input locked"
+  /// Held while the user enables "Keep Display Awake" from the menu, independent of locking.
+  public static let manualAssertionName = "PeekLock: keep display awake"
 
-  /// Returns false if IOKit refused the assertion (locking still proceeds).
+  private let name: String
+  private var assertionID: IOPMAssertionID = 0
+  public private(set) var isHeld = false
+
+  public init(name: String) {
+    self.name = name
+  }
+
+  /// Returns false if IOKit refused the assertion.
   @discardableResult
-  func acquire() -> Bool {
+  public func acquire() -> Bool {
     guard !isHeld else { return true }
     let result = IOPMAssertionCreateWithName(
       kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
       IOPMAssertionLevel(kIOPMAssertionLevelOn),
-      DisplayAwake.assertionName as CFString,
+      name as CFString,
       &assertionID)
     isHeld = result == kIOReturnSuccess
     return isHeld
   }
 
-  func release() {
+  public func release() {
     guard isHeld else { return }
     IOPMAssertionRelease(assertionID)
     isHeld = false

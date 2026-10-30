@@ -14,7 +14,18 @@ CLI 收到 SIGTERM 或 SIGHUP 时会先解锁再退出，因此可以通过 SSH 
 
 ## 菜单栏 App
 
-菜单提供 “Lock Input”、“Lock Input & Blank Screen”、Settings… 和权限引导。也可以通过全局快捷键（默认 ⌃⌥⌘L）或闲置自动锁定来锁定。
+菜单提供 “Lock Input”、“Lock Input & Blank Screen”、“Keep Display Awake”、Settings… 和权限引导。也可以通过全局快捷键（默认 ⌃⌥⌘L）或闲置自动锁定来锁定。
+
+### Keep Display Awake
+
+效果等同 `caffeinate -d`：勾选后持有 `PreventUserIdleDisplaySleep` 电源断言（名为 `PeekLock: keep display awake`），屏幕不会因闲置熄灭，与是否锁定无关。菜单栏图标变为带显示器的锁，再点一次取消。
+
+- 不保存状态：退出或重启 PeekLock 后自动失效，进程意外退出时由内核回收断言。
+- 不影响闲置自动锁定：断言不会重置键鼠闲置计时，所以“屏幕常亮 + N 分钟无操作自动锁输入”可以同时使用。
+- 合盖、按电源键、手动睡眠仍然会熄屏。
+- 开启期间系统不会因闲置进入屏保或熄屏，也就不会触发“屏保/熄屏后需要密码”，离开时请手动锁屏（⌃⌘Q）。
+
+可以用 `pmset -g assertions | grep PeekLock` 确认。
 
 ## 锁定期间
 
