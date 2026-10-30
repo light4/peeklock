@@ -8,9 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private let idleMonitor = IdleMonitor()
   private var lockHotkey: GlobalHotkey?
   private var settingsWindow: SettingsWindowController?
+  /// `caffeinate -d` equivalent toggled from the menu; not persisted across launches.
+  private let manualAwake = DisplayAwake(name: DisplayAwake.manualAssertionName)
 
   private var lockItem: NSMenuItem!
   private var blankItem: NSMenuItem!
+  private var awakeItem: NSMenuItem!
   private var permissionItem: NSMenuItem!
   private var statusLine: NSMenuItem!
 
@@ -52,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
   func applicationWillTerminate(_ notification: Notification) {
     controller.unlock()
+    manualAwake.release()
   }
 
   // MARK: - Settings
@@ -79,12 +83,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     permissionItem = NSMenuItem(
       title: "Grant Accessibility Permission…", action: #selector(permissionAction),
       keyEquivalent: "")
+    awakeItem = NSMenuItem(
+      title: "Keep Display Awake", action: #selector(awakeAction), keyEquivalent: "")
     statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     statusLine.isEnabled = false
     statusLine.isHidden = true
 
     menu.addItem(lockItem)
     menu.addItem(blankItem)
+    menu.addItem(.separator())
+    menu.addItem(awakeItem)
     menu.addItem(.separator())
     menu.addItem(permissionItem)
     menu.addItem(statusLine)
@@ -108,19 +116,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lockItem.title = "Lock Input" + lockKey
     lockItem.isEnabled = !controller.isLocked
     blankItem.isEnabled = !controller.isLocked
+    awakeItem.state = manualAwake.isHeld ? .on : .off
     let granted = Permissions.accessibilityGranted
     permissionItem.isHidden = granted
   }
 
   private func updateIcon() {
     let locked = controller.isLocked
-    let image = NSImage(
-      systemSymbolName: locked ? "lock.fill" : "lock.open",
-      accessibilityDescription: locked ? "PeekLock: locked" : "PeekLock: unlocked")
+    let awake = manualAwake.isHeld
+    let symbol: String
+    let description: String
+    switch (locked, awake) {
+    case (true, true):
+      symbol = "lock.display"
+      description = "PeekLock: locked, display kept awake"
+    case (true, false):
+      symbol = "lock.fill"
+      description = "PeekLock: locked"
+    case (false, true):
+      symbol = "lock.open.display"
+      description = "PeekLock: unlocked, display kept awake"
+    case (false, false):
+      symbol = "lock.open"
+      description = "PeekLock: unlocked"
+    }
+    let image =
+      NSImage(systemSymbolName: symbol, accessibilityDescription: description)
+      ?? NSImage(
+        systemSymbolName: locked ? "lock.fill" : "lock.open", accessibilityDescription: description)
     image?.isTemplate = true
     statusItem.button?.image = image
-    statusItem.button?.toolTip =
-      locked ? "Input locked — press \(settings.unlockHotkey) to unlock" : "PeekLock"
+    var tooltip = locked ? "Input locked — press \(settings.unlockHotkey) to unlock" : "PeekLock"
+    if awake { tooltip += "\nKeeping display awake" }
+    statusItem.button?.toolTip = tooltip
   }
 
   // MARK: - Actions
@@ -153,6 +181,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
   @objc private func lockAction() { lock(blank: false) }
   @objc private func lockBlankAction() { lock(blank: true) }
+
+  @objc private func awakeAction() {
+    if manualAwake.isHeld {
+      manualAwake.release()
+      Log.info("Keep display awake: off")
+    } else if manualAwake.acquire() {
+      Log.info("Keep display awake: on")
+    } else {
+      Log.error("Keep display awake: IOKit refused the power assertion")
+      statusLine.title = "Could not keep display awake"
+      statusLine.isHidden = false
+    }
+    updateIcon()
+    refreshMenu()
+  }
 
   @objc private func permissionAction() {
     Permissions.request()

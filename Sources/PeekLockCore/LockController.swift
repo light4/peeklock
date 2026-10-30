@@ -39,7 +39,7 @@ public final class LockController {
   private let authenticator = Authenticator()
   private var previousApp: NSRunningApplication?
   private var debugTimer: Timer?
-  private let displayAwake = DisplayAwake()
+  private let displayAwake = DisplayAwake(name: DisplayAwake.lockAssertionName)
   private var unlockHotkey: Hotkey
   /// Per-target tally of keys/clicks seen during the current authentication;
   /// written to the unified log as a single audit line when authentication finishes.

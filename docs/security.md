@@ -28,3 +28,4 @@ PeekLock 用来**防误触**，防小孩或猫乱按，**不是**安全锁屏。
 - **进程被结束**：其他用户或 SSH 会话可以 `pkill PeekLock` / `pkill peeklock` 解锁，xtrlock 同样如此。
 - **辅助技术**：语音控制、Siri、切换控制等可能绕过。
 - **调试构建**：60 秒后自动解锁。
+- **保持屏幕常亮**：锁定期间（默认开启的 Keep display awake 设置）或菜单开启 Keep Display Awake 时，屏幕不会因闲置熄灭，系统“屏保/熄屏后需要密码”也不会触发。
